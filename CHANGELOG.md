@@ -1,5 +1,11 @@
 # @gerardpastor/lexer
 
+## 0.1.0
+
+### Minor Changes
+
+- 5edde4c: Added lexer
+
 ## 0.0.2
 
 ### Patch Changes
