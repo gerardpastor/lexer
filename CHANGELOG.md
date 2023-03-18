@@ -1,5 +1,12 @@
 # @gerardpastor/lexer
 
+## 0.1.3
+
+### Patch Changes
+
+- d258a93: Improved docs
+- Added string values escaping
+
 ## 0.1.2
 
 ### Patch Changes
