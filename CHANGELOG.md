@@ -1,5 +1,11 @@
 # @gerardpastor/lexer
 
+## 0.1.2
+
+### Patch Changes
+
+- Added basic readme
+
 ## 0.1.1
 
 ### Patch Changes
