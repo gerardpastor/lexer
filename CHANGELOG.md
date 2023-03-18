@@ -1,5 +1,11 @@
 # @gerardpastor/lexer
 
+## 0.1.1
+
+### Patch Changes
+
+- 05baa14: Added tests
+
 ## 0.1.0
 
 ### Minor Changes
