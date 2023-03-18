@@ -13,15 +13,9 @@ A simple typescript lexer.
 ## Usage
 
 ```typescript
-import { Lexer, definition } from "lexer";
-
+import { lexer, definition } from "@gerardpastor/lexer";
 
 const definitions = [
-  definition({
-    type: "whitespace",
-    value: " ",
-    skip: true,
-  }),
   definition({
     type: "word",
     regex: /([a-zA-Z0-9]+)/,
@@ -32,26 +26,29 @@ const definitions = [
   }),
   definition({
     type: "operator",
-    values: ["+", "-", "*", "/"],
+    values: ["\\+", "-", "\\*", "\\/"],
   }),
   definition({
     type: "parenthesis",
     values: ["(", ")"],
+  }),
+  definition({
+    type: "whitespace",
+    regex: /[ ]+/,
+    skip: true,
   }),
 ];
 
 const tokenizer = lexer(definitions);
 const tokens = tokenizer("1 + 2 * 3");
 
+console.log(tokens);
+
 // [
 //   { type: 'number', value: '1', data: {} },
-//   { type: 'whitespace', value: ' ', data: {} },
 //   { type: 'operator', value: '+', data: {} },
-//   { type: 'whitespace', value: ' ', data: {} },
 //   { type: 'number', value: '2', data: {} },
-//   { type: 'whitespace', value: ' ', data: {} },
 //   { type: 'operator', value: '*', data: {} },
-//   { type: 'whitespace', value: ' ', data: {} },
 //   { type: 'number', value: '3', data: {} }
 // ]
 ```
