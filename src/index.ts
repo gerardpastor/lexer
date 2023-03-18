@@ -10,8 +10,13 @@ export interface Token {
 export type ProcessFn = (token: Token) => Token;
 const defaultProcess: ProcessFn = (token) => token;
 
+const escapeRegex = (regex?: string) =>
+  regex?.replace(new RegExp("[\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\^\\$\\|]", "g"), "\\$&") ?? "";
+// const escapeRegex= (regex: string) => regex.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+
 const buildRegex = (regex: string, flags?: string) => {
   if (/^\(*\^/g.test(regex)) throw new Error(`Regex cannot start with ^: "${regex}"`);
+  // const escaped =
   return new RegExp("^" + regex, (flags ?? "").replace("g", ""));
 };
 
@@ -45,7 +50,7 @@ class Definition {
       throw new Error("Can only define one of regex, values or value");
     }
 
-    definition.regex ??= `(${(definition.values ?? [definition.value]).join("|")})\\b`;
+    definition.regex ??= `(${(definition.values ?? [definition.value]).map(escapeRegex).join("|")})\\b`;
     definition.valid ??= definition.regex;
     definition.validFlags ??= definition.regexFlags;
 
