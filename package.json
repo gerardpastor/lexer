@@ -4,7 +4,11 @@
   "description": "A simple lexer for TypeScript",
   "main": "index.js",
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts"
+    "dev": "vitest",
+    "test": "vitest run",
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "lint": "tsc",
+    "ci": "pnpm run lint && pnpm run test && pnpm run build"
   },
   "keywords": [
     "lexer",
@@ -16,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^18.15.3",
     "tsup": "^6.6.3",
-    "typescript": "^5.0.2"
+    "typescript": "^5.0.2",
+    "vitest": "^0.29.3"
   }
 }
