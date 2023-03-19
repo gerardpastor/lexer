@@ -12,13 +12,42 @@ const defaultProcess: ProcessFn = (token) => token;
 
 const escapeRegex = (regex?: string) =>
   regex?.replace(new RegExp("[\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\^\\$\\|]", "g"), "\\$&") ?? "";
-// const escapeRegex= (regex: string) => regex.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
 
 const buildRegex = (regex: string, flags?: string) => {
   if (/^\(*\^/g.test(regex)) throw new Error(`Regex cannot start with ^: "${regex}"`);
   // const escaped =
   return new RegExp("^" + regex, (flags ?? "").replace("g", ""));
 };
+
+export type DefinitionProps = {
+  type: string;
+  valid?: RegExp | string;
+  validFlags?: string;
+
+  deep?: boolean;
+  skip?: boolean;
+
+  process?: ProcessFn;
+} & (
+  | {
+      value: string;
+      values?: never;
+      regex?: never;
+      regexFlags?: never;
+    }
+  | {
+      value?: never;
+      values: string[];
+      regex?: never;
+      regexFlags?: never;
+    }
+  | {
+      value?: never;
+      values?: never;
+      regex: RegExp | string;
+      regexFlags?: string;
+    }
+);
 
 class Definition {
   readonly type: string;
@@ -42,11 +71,7 @@ class Definition {
     if (!definition.regex && !definition.values && !definition.value)
       throw new Error("Definition must define regex, values or value");
 
-    if (
-      (definition.regex && definition.value) ||
-      (definition.regex && definition.values) ||
-      (definition.value && definition.values)
-    ) {
+    if ([definition.regex, definition.values, definition.value].filter(Boolean).length > 1) {
       throw new Error("Can only define one of regex, values or value");
     }
 
@@ -87,36 +112,6 @@ class Definition {
   }
 }
 
-export type DefinitionProps = {
-  type: string;
-  valid?: RegExp | string;
-  validFlags?: string;
-
-  deep?: boolean;
-  skip?: boolean;
-
-  process?: ProcessFn;
-} & (
-  | {
-      value: string;
-      values?: never;
-      regex?: never;
-      regexFlags?: never;
-    }
-  | {
-      value?: never;
-      values: string[];
-      regex?: never;
-      regexFlags?: never;
-    }
-  | {
-      value?: never;
-      values?: never;
-      regex: RegExp | string;
-      regexFlags?: string;
-    }
-);
-
 export type Tokenizer = (input: string, process?: ProcessFn) => Token[];
 
 export function definition(definition: DefinitionProps | (() => DefinitionProps)): Definition {
@@ -143,7 +138,7 @@ export function lexer(definitions: Definition[], lexerProcess: ProcessFn = defau
       if (!match) throw new Error(`No value matched for "${rest}"`);
 
       const value = match.groups?.value ?? match[0];
-      rest = rest.slice(value.length);
+      rest = rest.slice(match[0].length);
 
       if (definition.skip) continue;
 

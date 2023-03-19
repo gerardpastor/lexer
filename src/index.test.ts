@@ -10,14 +10,16 @@ describe("Definitions", () => {
   });
 
   it.concurrent("value is escaped", async ({ expect }) => {
-    expect(definition({ type: "mock", value: "-[]/{}()*+?.\\^$|" }).toString()).toEqual("((\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\\\^\\$\\|)\\b)");
+    expect(definition({ type: "mock", value: "-[]/{}()*+?.\\^$|" }).toString()).toEqual(
+      "((\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\\\^\\$\\|)\\b)",
+    );
   });
 
-  
   it.concurrent("values are escaped", async ({ expect }) => {
-    expect(definition({ type: "mock", value: "-[]/{}()*+?.\\^$|" }).toString()).toEqual("((\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\\\^\\$\\|)\\b)");
+    expect(definition({ type: "mock", value: "-[]/{}()*+?.\\^$|" }).toString()).toEqual(
+      "((\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\\\^\\$\\|)\\b)",
+    );
   });
-
 
   it.concurrent("can provide an array of values", async ({ expect }) => {
     expect(definition({ type: "mock", values: ["AA", "BB", "CC"] }).toString()).toEqual("((AA|BB|CC)\\b)");
@@ -220,6 +222,23 @@ describe("Tokenizer", () => {
     ]);
   });
 
+  it.concurrent("can tokenize a string with custom value portion", async ({ expect }) => {
+    const helloWorld = definition({ type: "group", regex: /the (?<value>(?<adjective>[^ ]+) (?<animal>(fox|dog)+))/ });
+    const word = definition({ type: "word", regex: /[^ ]+/ });
+    const space = definition({ type: "space", regex: /[ ]+/ });
+    const tokenize = lexer([helloWorld, word, space]);
+
+    expect(tokenize("the quick fox jumps over the lazy dog")).toEqual([
+      { type: "group", value: "quick fox", data: { adjective: "quick", animal: "fox" } },
+      { type: "space", value: " ", data: {} },
+      { type: "word", value: "jumps", data: {} },
+      { type: "space", value: " ", data: {} },
+      { type: "word", value: "over", data: {} },
+      { type: "space", value: " ", data: {} },
+      { type: "group", value: "lazy dog", data: { adjective: "lazy", animal: "dog" } },
+    ]);
+  });
+
   it.concurrent("can tokenize a string with nested definitions", async ({ expect }) => {
     const space = definition({ type: "space", regex: /[ ]+/ });
     const hello = definition({ type: "hello", regex: /hello/ });
@@ -241,6 +260,46 @@ describe("Tokenizer", () => {
       },
       { type: "space", value: " ", data: {} },
       { type: "hello", value: "hello", data: {} },
+    ]);
+  });
+
+  it.concurrent("can tokenize a string with  nested definitions and a custom value portion", async ({ expect }) => {
+    const helloWorld = definition({
+      type: "group",
+      regex: /the (?<value>(?<adjective>[^ ]+) (?<animal>(fox|dog)+))/,
+      deep: true,
+    });
+    const word = definition({ type: "word", regex: /[^ ]+/ });
+    const space = definition({ type: "space", regex: /[ ]+/, skip: true });
+    const tokenize = lexer([helloWorld, word, space]);
+
+    expect(tokenize("the quick fox jumps over the lazy dog")).toEqual([
+      {
+        type: "group",
+        value: "quick fox",
+        data: {
+          adjective: "quick",
+          animal: "fox",
+        },
+        children: [
+          { type: "word", value: "quick", data: {} },
+          { type: "word", value: "fox", data: {} },
+        ],
+      },
+      { type: "word", value: "jumps", data: {} },
+      { type: "word", value: "over", data: {} },
+      {
+        type: "group",
+        value: "lazy dog",
+        data: {
+          adjective: "lazy",
+          animal: "dog",
+        },
+        children: [
+          { type: "word", value: "lazy", data: {} },
+          { type: "word", value: "dog", data: {} },
+        ],
+      },
     ]);
   });
 
@@ -318,10 +377,17 @@ describe("Tokenizer", () => {
   });
 
   it.concurrent("must throw an error if no definition matches", async ({ expect }) => {
-    const mock = definition({ type: "mock", regex: /\\w+/ });
+    const mock = definition({ type: "mock", regex: /[ ]+/ });
     const tokenize = lexer([mock]);
 
     expect(() => tokenize("mock")).toThrow('No definition matched for "mock"');
+  });
+
+  it.concurrent("must throw an error if regex not matches with a passed test", async ({ expect }) => {
+    const mock = definition({ type: "mock", regex: /[ ]+/, valid: /[^ ]+/ });
+    const tokenize = lexer([mock]);
+
+    expect(() => tokenize("mock")).toThrow('No value matched for "mock"');
   });
 });
 
