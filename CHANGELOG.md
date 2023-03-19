@@ -1,5 +1,11 @@
 # @gerardpastor/lexer
 
+## 0.1.4
+
+### Patch Changes
+
+- 6669084: Fixed use of value group
+
 ## 0.1.3
 
 ### Patch Changes
