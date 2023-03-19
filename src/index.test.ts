@@ -22,16 +22,40 @@ describe("Definitions", () => {
   });
 
   it.concurrent("can provide a single regex", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*" }).toString()).toEqual("(.*)");
-    expect(definition({ type: "mock", regex: /.*/ }).toString()).toEqual("(.*)");
+    expect(definition({ type: "mock", regex: ".*" }).toString()).toEqual("(.*\\b)");
+    expect(definition({ type: "mock", regex: /.*/ }).toString()).toEqual("(.*\\b)");
   });
 
   it.concurrent("can provide an array of regexes", async ({ expect }) => {
-    expect(definition({ type: "mock", regexes: [".*", /.*/] }).toString()).toEqual("((.*|.*)\\b)");
+    expect(definition({ type: "mock", regexes: [".*", /.*/] }).toString()).toEqual("((.*)|(.*))");
   });
 
   it.concurrent("can provide an array of values", async ({ expect }) => {
     expect(definition({ type: "mock", values: ["AA", "BB", "CC"] }).toString()).toEqual("((AA|BB|CC)\\b)");
+  });
+
+  it.concurrent("can provide a word boundary value", async ({ expect }) => {
+    expect(definition({ type: "mock", value: "value", wordBoundary: true }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", value: "value", wordBoundary: false }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", values: ["value"], wordBoundary: true }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", values: ["value"], wordBoundary: false }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", regex: /(value)/, wordBoundary: true }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", regex: "(value)", wordBoundary: true }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", regex: /(value)/, wordBoundary: false }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", regex: "(value)", wordBoundary: false }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", regexes: [/value/], wordBoundary: true }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", regexes: ["value"], wordBoundary: true }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", regexes: [/value/], wordBoundary: false }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", regexes: ["value"], wordBoundary: false }).toString()).toEqual("((value))");
+  });
+
+  it.concurrent("must use word boundary only for values by default", async ({ expect }) => {
+    expect(definition({ type: "mock", value: "value" }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", values: ["value"] }).toString()).toEqual("((value)\\b)");
+    expect(definition({ type: "mock", regex: /(value)/ }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", regex: "(value)" }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", regexes: [/value/] }).toString()).toEqual("((value))");
+    expect(definition({ type: "mock", regexes: ["value"] }).toString()).toEqual("((value))");
   });
 
   it.concurrent("regexes are encapsulated", async ({ expect }) => {
@@ -49,7 +73,7 @@ describe("Definitions", () => {
     expect(definition({ type: "mock", regex: /.*/ }).execRegex).toEqual(/^(.*)/);
   });
 
-  it.concurrent("can use regex as a validation function by default", async ({ expect }) => {
+  it.concurrent("must use regex as a validation function by default", async ({ expect }) => {
     expect(definition({ type: "mock", regex: ".*" }).testRegex).toEqual(/^(.*)/);
     expect(definition({ type: "mock", regex: /.*/ }).testRegex).toEqual(/^(.*)/);
   });
@@ -59,6 +83,13 @@ describe("Definitions", () => {
     expect(definition({ type: "mock", regex: /.*/, valid: "[^ ]+" }).testRegex).toEqual(/^([^ ]+)/);
     expect(definition({ type: "mock", regex: ".*", valid: /[^ ]+/ }).testRegex).toEqual(/^([^ ]+)/);
     expect(definition({ type: "mock", regex: /.*/, valid: /[^ ]+/ }).testRegex).toEqual(/^([^ ]+)/);
+  });
+
+  it.concurrent("can provide a next validation regex", async ({ expect }) => {
+    expect(definition({ type: "mock", regex: ".*", nextValid: " [^ ]+" }).testRegex).toEqual(/^((.*)( [^ ]+))/);
+    expect(definition({ type: "mock", regex: /.*/, nextValid: " [^ ]+" }).testRegex).toEqual(/^((.*)( [^ ]+))/);
+    expect(definition({ type: "mock", regex: ".*", nextValid: / [^ ]+/ }).testRegex).toEqual(/^((.*)( [^ ]+))/);
+    expect(definition({ type: "mock", regex: /.*/, nextValid: / [^ ]+/ }).testRegex).toEqual(/^((.*)( [^ ]+))/);
   });
 
   it.concurrent("can provide custom regex flags", async ({ expect }) => {

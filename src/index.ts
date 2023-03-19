@@ -23,11 +23,11 @@ const buildRegex = (regex: string, flags?: string) => {
 export type DefinitionProps = {
   type: string;
   regexFlags?: string;
-  valid?: RegExp | string;
   validFlags?: string;
 
   deep?: boolean;
   skip?: boolean;
+  wordBoundary?: boolean;
 
   process?: ProcessFn;
 } & (
@@ -55,7 +55,21 @@ export type DefinitionProps = {
       regex?: never;
       regexes: (RegExp | string)[];
     }
-);
+) &
+  (
+    | {
+        valid?: never;
+        nextValid?: never;
+      }
+    | {
+        valid: RegExp | string;
+        nextValid?: never;
+      }
+    | {
+        valid?: never;
+        nextValid: RegExp | string;
+      }
+  );
 
 class Definition {
   readonly type: string;
@@ -69,26 +83,47 @@ class Definition {
   readonly deep: boolean;
   readonly skip: boolean;
 
+  readonly wordBoundary: boolean;
+
   readonly process: ProcessFn;
 
   constructor(definition: DefinitionProps) {
+    // Validate props
     if (definition.value === "") throw new Error("Definition value cannot be empty");
     if (definition.values?.filter(Boolean).length === 0) throw new Error("Definition values cannot be empty");
     if (definition.regex === "") throw new Error("Definition regex cannot be empty");
     if (definition.regexes?.filter(Boolean).length === 0) throw new Error("Definition regexes cannot be empty");
 
-    const inputs = [definition.regex, definition.regexes, definition.values, definition.value].filter(Boolean).length;
-    if (inputs === 0) throw new Error("Definition must define regex, regexes, values or value");
-    if (inputs > 1) throw new Error("Can only define one of regex, regexes, values or value");
+    const regexInputs = [definition.regex, definition.regexes, definition.values, definition.value].filter(
+      Boolean,
+    ).length;
+    if (regexInputs === 0) throw new Error("Definition must define regex, regexes, values or value");
+    if (regexInputs > 1) throw new Error("Can only define one of regex, regexes, values or value");
 
-    definition.regex ??= `(${(
-      definition.regexes?.map((regex) => (typeof regex === "string" ? regex : regex.source)) ??
-      definition.values?.map(escapeRegex) ?? [escapeRegex(definition.value)]
-    ).join("|")})\\b`;
-    definition.valid ??= definition.regex;
-    definition.validFlags ??= definition.regexFlags;
+    const validInputs = [definition.valid, definition.nextValid].filter(Boolean).length;
+    if (validInputs > 1) throw new Error("Can only define one of valid or nextValid");
+
+    // Format props
+    if (definition.value) definition.value = escapeRegex(definition.value);
+    if (definition.values) definition.values = definition.values.map(escapeRegex);
+    if (definition.regexes) definition.regexes = definition.regexes.map(regexAsString).map((r) => `(${r})`);
+    if (definition.regex) definition.regex = regexAsString(definition.regex);
+    if (definition.valid) definition.valid = regexAsString(definition.valid);
+    if (definition.nextValid) definition.nextValid = regexAsString(definition.nextValid);
+
+    // definition.wordBoundary ??= !!(definition.value || definition.values);
+    definition.wordBoundary ??= true;
+
+    definition.regex ??= definition.regexes
+      ? definition.regexes.join("|")
+      : `(${(definition.values ?? [definition.value]).join("|")})`;
+
+    definition.regex = definition.wordBoundary ? `${definition.regex}\\b` : definition.regex;
 
     const stringRegex = `(${regexAsString(definition.regex)})`;
+
+    definition.valid ??= definition.nextValid ? `${stringRegex}(${definition.nextValid})` : definition.regex;
+    definition.validFlags ??= definition.regexFlags;
     const stringValid = `(${regexAsString(definition.valid)})`;
 
     const execRegex = buildRegex(stringRegex, definition.regexFlags);
@@ -101,6 +136,8 @@ class Definition {
 
     this.stringRegex = stringRegex;
     this.stringValid = stringValid;
+
+    this.wordBoundary = definition.wordBoundary;
 
     this.deep = definition.deep ?? false;
     this.skip = definition.skip ?? false;
