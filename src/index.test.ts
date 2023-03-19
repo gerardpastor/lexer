@@ -21,6 +21,15 @@ describe("Definitions", () => {
     );
   });
 
+  it.concurrent("can provide a single regex", async ({ expect }) => {
+    expect(definition({ type: "mock", regex: ".*" }).toString()).toEqual("(.*)");
+    expect(definition({ type: "mock", regex: /.*/ }).toString()).toEqual("(.*)");
+  });
+
+  it.concurrent("can provide an array of regexes", async ({ expect }) => {
+    expect(definition({ type: "mock", regexes: [".*", /.*/] }).toString()).toEqual("((.*|.*)\\b)");
+  });
+
   it.concurrent("can provide an array of values", async ({ expect }) => {
     expect(definition({ type: "mock", values: ["AA", "BB", "CC"] }).toString()).toEqual("((AA|BB|CC)\\b)");
   });

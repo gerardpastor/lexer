@@ -13,6 +13,7 @@ const defaultProcess: ProcessFn = (token) => token;
 const escapeRegex = (regex?: string) =>
   regex?.replace(new RegExp("[\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\^\\$\\|]", "g"), "\\$&") ?? "";
 
+const regexAsString = (regex: string | RegExp) => (typeof regex === "string" ? regex : regex.source);
 const buildRegex = (regex: string, flags?: string) => {
   if (/^\(*\^/g.test(regex)) throw new Error(`Regex cannot start with ^: "${regex}"`);
   // const escaped =
@@ -33,18 +34,28 @@ export type DefinitionProps = {
       value: string;
       values?: never;
       regex?: never;
+      regexes?: never;
       regexFlags?: never;
     }
   | {
       value?: never;
       values: string[];
       regex?: never;
+      regexes?: never;
       regexFlags?: never;
     }
   | {
       value?: never;
       values?: never;
       regex: RegExp | string;
+      regexes?: never;
+      regexFlags?: string;
+    }
+  | {
+      value?: never;
+      values?: never;
+      regex?: never;
+      regexes: (RegExp | string)[];
       regexFlags?: string;
     }
 );
@@ -67,20 +78,21 @@ class Definition {
     if (definition.value === "") throw new Error("Definition value cannot be empty");
     if (definition.values?.filter(Boolean).length === 0) throw new Error("Definition values cannot be empty");
     if (definition.regex === "") throw new Error("Definition regex cannot be empty");
+    if (definition.regexes?.filter(Boolean).length === 0) throw new Error("Definition regexes cannot be empty");
 
-    if (!definition.regex && !definition.values && !definition.value)
-      throw new Error("Definition must define regex, values or value");
+    const inputs = [definition.regex, definition.regexes, definition.values, definition.value].filter(Boolean).length;
+    if (inputs === 0) throw new Error("Definition must define regex, regexes, values or value");
+    if (inputs > 1) throw new Error("Can only define one of regex, regexes, values or value");
 
-    if ([definition.regex, definition.values, definition.value].filter(Boolean).length > 1) {
-      throw new Error("Can only define one of regex, values or value");
-    }
-
-    definition.regex ??= `(${(definition.values ?? [definition.value]).map(escapeRegex).join("|")})\\b`;
+    definition.regex ??= `(${(
+      definition.regexes?.map((regex) => (typeof regex === "string" ? regex : regex.source)) ??
+      definition.values?.map(escapeRegex) ?? [escapeRegex(definition.value)]
+    ).join("|")})\\b`;
     definition.valid ??= definition.regex;
     definition.validFlags ??= definition.regexFlags;
 
-    const stringRegex = `(${typeof definition.regex === "string" ? definition.regex : definition.regex.source})`;
-    const stringValid = `(${typeof definition.valid === "string" ? definition.valid : definition.valid.source})`;
+    const stringRegex = `(${regexAsString(definition.regex)})`;
+    const stringValid = `(${regexAsString(definition.valid)})`;
 
     const execRegex = buildRegex(stringRegex, definition.regexFlags);
     const testRegex = buildRegex(stringValid, definition.validFlags);
