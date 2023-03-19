@@ -22,6 +22,7 @@ const buildRegex = (regex: string, flags?: string) => {
 
 export type DefinitionProps = {
   type: string;
+  regexFlags?: string;
   valid?: RegExp | string;
   validFlags?: string;
 
@@ -35,28 +36,24 @@ export type DefinitionProps = {
       values?: never;
       regex?: never;
       regexes?: never;
-      regexFlags?: never;
     }
   | {
       value?: never;
       values: string[];
       regex?: never;
       regexes?: never;
-      regexFlags?: never;
     }
   | {
       value?: never;
       values?: never;
       regex: RegExp | string;
       regexes?: never;
-      regexFlags?: string;
     }
   | {
       value?: never;
       values?: never;
       regex?: never;
       regexes: (RegExp | string)[];
-      regexFlags?: string;
     }
 );
 
