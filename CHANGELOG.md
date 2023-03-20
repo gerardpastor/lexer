@@ -1,5 +1,16 @@
 # @gerardpastor/lexer
 
+## 0.2.0
+
+### Minor Changes
+
+- d1a5b84: Refectored lexer
+
+### Patch Changes
+
+- 235a84d: Added next valid and word boundary
+- 6669084: Fixed use of value group
+
 ## 0.1.3
 
 ### Patch Changes
