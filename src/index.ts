@@ -1,3 +1,5 @@
+import { escapeLiteral, regexAsString, buildRegex, checkProp, asArray } from "./util";
+
 export interface Token {
   type: string;
   value: string;
@@ -10,44 +12,40 @@ export interface Token {
 export type ProcessFn = (token: Token) => Token;
 const defaultProcess: ProcessFn = (token) => token;
 
-const escapeRegex = (regex?: string) =>
-  regex?.replace(new RegExp("[\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\^\\$\\|]", "g"), "\\$&") ?? "";
-
-const buildRegex = (regex: string, flags?: string) => {
-  if (/^\(*\^/g.test(regex)) throw new Error(`Regex cannot start with ^: "${regex}"`);
-  // const escaped =
-  return new RegExp("^" + regex, (flags ?? "").replace("g", ""));
-};
-
 export type DefinitionProps = {
   type: string;
-  valid?: RegExp | string;
+  regexFlags?: string;
   validFlags?: string;
 
   deep?: boolean;
   skip?: boolean;
+  wordBoundary?: boolean;
 
   process?: ProcessFn;
 } & (
   | {
-      value: string;
-      values?: never;
+      literal: string | string[];
       regex?: never;
-      regexFlags?: never;
     }
   | {
-      value?: never;
-      values: string[];
-      regex?: never;
-      regexFlags?: never;
+      literal?: never;
+      regex: RegExp | string | (RegExp | string)[];
     }
-  | {
-      value?: never;
-      values?: never;
-      regex: RegExp | string;
-      regexFlags?: string;
-    }
-);
+) &
+  (
+    | {
+        valid?: never;
+        nextValid?: never;
+      }
+    | {
+        valid: RegExp | string;
+        nextValid?: never;
+      }
+    | {
+        valid?: never;
+        nextValid: RegExp | string;
+      }
+  );
 
 class Definition {
   readonly type: string;
@@ -61,42 +59,44 @@ class Definition {
   readonly deep: boolean;
   readonly skip: boolean;
 
+  readonly wordBoundary: boolean;
+
   readonly process: ProcessFn;
 
   constructor(definition: DefinitionProps) {
-    if (definition.value === "") throw new Error("Definition value cannot be empty");
-    if (definition.values?.filter(Boolean).length === 0) throw new Error("Definition values cannot be empty");
-    if (definition.regex === "") throw new Error("Definition regex cannot be empty");
+    let { regex, literal, valid, nextValid, regexFlags, validFlags } = definition;
 
-    if (!definition.regex && !definition.values && !definition.value)
-      throw new Error("Definition must define regex, values or value");
+    if (!literal && !regex) throw new Error("Must define literal or regex");
+    if (literal && regex) throw new Error("Can only define one of literal or regex");
+    if (valid && nextValid) throw new Error("Can only define one of valid or nextValid");
 
-    if ([definition.regex, definition.values, definition.value].filter(Boolean).length > 1) {
-      throw new Error("Can only define one of regex, values or value");
-    }
-
-    definition.regex ??= `(${(definition.values ?? [definition.value]).map(escapeRegex).join("|")})\\b`;
-    definition.valid ??= definition.regex;
-    definition.validFlags ??= definition.regexFlags;
-
-    const stringRegex = `(${typeof definition.regex === "string" ? definition.regex : definition.regex.source})`;
-    const stringValid = `(${typeof definition.valid === "string" ? definition.valid : definition.valid.source})`;
-
-    const execRegex = buildRegex(stringRegex, definition.regexFlags);
-    const testRegex = buildRegex(stringValid, definition.validFlags);
+    if (!checkProp(literal)) throw new Error("Definition literal cannot be empty");
+    if (!checkProp(regex)) throw new Error("Definition regex cannot be empty");
+    if (!checkProp(valid)) throw new Error("Definition valid cannot be empty");
+    if (!checkProp(nextValid)) throw new Error("Definition nextValid cannot be empty");
 
     this.type = definition.type;
-
-    this.execRegex = execRegex;
-    this.testRegex = testRegex;
-
-    this.stringRegex = stringRegex;
-    this.stringValid = stringValid;
-
+    this.wordBoundary = definition.wordBoundary ?? true;
     this.deep = definition.deep ?? false;
     this.skip = definition.skip ?? false;
-
     this.process = definition.process ?? defaultProcess;
+
+    // regex ??= asArray(literal!).map(escapeLiteral);
+    const execArray = regex ? asArray(regex).map(regexAsString) : asArray(literal!).map(escapeLiteral);
+    const execStringArrayRegex = execArray.join("|");
+    const execStringRegex = this.wordBoundary ? `(\\b(${execStringArrayRegex})\\b)` : `(${execStringArrayRegex})`;
+
+    const testStringRegex = valid
+      ? regexAsString(valid)
+      : nextValid
+      ? `${execStringRegex}${regexAsString(nextValid)}`
+      : execStringRegex;
+
+    this.execRegex = buildRegex(execStringRegex, regexFlags);
+    this.testRegex = buildRegex(testStringRegex, validFlags ?? regexFlags);
+
+    this.stringRegex = execStringRegex;
+    this.stringValid = testStringRegex;
   }
 
   exec(input: string) {
@@ -120,15 +120,18 @@ export function definition(definition: DefinitionProps | (() => DefinitionProps)
 }
 
 export function lexer(definitions: Definition[], lexerProcess: ProcessFn = defaultProcess): Tokenizer {
-  let ommitedDefnitons: Definition[] = [];
+  let parentDefinition: Definition | null = null;
+  let usedDefinitions: Map<Definition, string> = new Map();
 
   if (!definitions.length) throw new Error("No definitions provided");
 
-  const tokenizer = (input: string, tokenizerProcess: ProcessFn = defaultProcess) => {
+  const tokenizer: Tokenizer = (input: string, tokenizerProcess: ProcessFn = defaultProcess) => {
     let rest = input;
     let tokens: any = [];
 
-    const validDefinitions = definitions.filter((definition) => !ommitedDefnitons.includes(definition));
+    const validDefinitions = parentDefinition
+      ? definitions.filter((definition) => definition != parentDefinition)
+      : definitions;
 
     do {
       const definition = validDefinitions.find((definition) => definition.test(rest));
@@ -139,6 +142,11 @@ export function lexer(definitions: Definition[], lexerProcess: ProcessFn = defau
 
       const value = match.groups?.value ?? match[0];
       rest = rest.slice(match[0].length);
+
+      if (usedDefinitions.has(definition) && usedDefinitions.get(definition) === value) {
+        const keys = [...usedDefinitions.keys()].map((d) => d.type);
+        throw new Error(`Infinite loop detected for "${value}": ${keys.join(" -> ")}`);
+      }
 
       if (definition.skip) continue;
 
@@ -152,9 +160,13 @@ export function lexer(definitions: Definition[], lexerProcess: ProcessFn = defau
       };
 
       if (definition.deep) {
-        ommitedDefnitons.push(definition);
+        usedDefinitions.set(definition, value);
+        parentDefinition = definition;
+
         token.children = tokenizer(value);
-        ommitedDefnitons.pop();
+
+        parentDefinition = null;
+        usedDefinitions.delete(definition);
       }
 
       token = definition.process(token);
