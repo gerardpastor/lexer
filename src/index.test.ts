@@ -270,22 +270,22 @@ describe("Tokenizer", () => {
   it.concurrent("can tokenize a string", async ({ expect }) => {
     const def = definition({ type: "mock", regex: ".*" });
     const tokenize = lexer([def]);
-    expect(tokenize("hello")).toEqual([{ type: "mock", value: "hello", data: {} }]);
+    expect(tokenize("hello")).toEqual([{ type: "mock", value: "hello" }]);
   });
 
   it.concurrent("can tokenize a string with multiple definitions", async ({ expect }) => {
     const wordDef = definition({ type: "word", regex: /[^ ]+/ });
     const tokenize = lexer([wordDef, spaceDef]);
-    expect(tokenize("hello")).toEqual([{ type: "word", value: "hello", data: {} }]);
+    expect(tokenize("hello")).toEqual([{ type: "word", value: "hello" }]);
   });
 
   it.concurrent("can tokenize a string with multiple definitions and multiple matches", async ({ expect }) => {
     const wordDef = definition({ type: "word", regex: /[^ ]+/ });
     const tokenize = lexer([wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
-      { type: "word", value: "hello", data: {} },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "world", data: {} },
+      { type: "word", value: "hello" },
+      { type: "space", value: " " },
+      { type: "word", value: "world" },
     ]);
   });
 
@@ -294,9 +294,9 @@ describe("Tokenizer", () => {
     const wordDef = definition({ type: "word", regex: /[^ ]+/ });
     const tokenize = lexer([helloDef, wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
-      { type: "mock", value: "hello", data: {} },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "world", data: {} },
+      { type: "mock", value: "hello" },
+      { type: "space", value: " " },
+      { type: "word", value: "world" },
     ]);
   });
 
@@ -304,9 +304,9 @@ describe("Tokenizer", () => {
     const mockDef = definition({ type: "mock", literal: ["hello", "world"] });
     const tokenize = lexer([mockDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
-      { type: "mock", value: "hello", data: {} },
-      { type: "space", value: " ", data: {} },
-      { type: "mock", value: "world", data: {} },
+      { type: "mock", value: "hello" },
+      { type: "space", value: " " },
+      { type: "mock", value: "world" },
     ]);
   });
 
@@ -327,9 +327,9 @@ describe("Tokenizer", () => {
     const spaceDef = definition({ type: "token", regex: /[ ]+/, wordBoundary: false });
     const tokenize = lexer([wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
-      { type: "token", value: "hello", data: {} },
-      { type: "token", value: " ", data: {} },
-      { type: "token", value: "world", data: {} },
+      { type: "token", value: "hello" },
+      { type: "token", value: " " },
+      { type: "token", value: "world" },
     ]);
   });
 
@@ -337,21 +337,21 @@ describe("Tokenizer", () => {
     const mock1Def = definition({ type: "mock1", regex: /[^ ]+/ });
     const mock2Def = definition({ type: "mock2", regex: /[^ ]+/ });
     const tokenize = lexer([mock1Def, mock2Def]);
-    expect(tokenize("mock")).toEqual([{ type: "mock1", value: "mock", data: {} }]);
+    expect(tokenize("mock")).toEqual([{ type: "mock1", value: "mock" }]);
   });
 
   it.concurrent("definitions with equal regex start must match the first one", async ({ expect }) => {
     const mock1Def = definition({ type: "mock1", regex: /[^ ]+/ });
     const mock2Def = definition({ type: "mock2", regex: /[^ ]ock/ });
     const tokenize = lexer([mock1Def, mock2Def]);
-    expect(tokenize("mock")).toEqual([{ type: "mock1", value: "mock", data: {} }]);
+    expect(tokenize("mock")).toEqual([{ type: "mock1", value: "mock" }]);
   });
 
   it.concurrent("definitions with equal regex start must match the first one", async ({ expect }) => {
     const mock1Def = definition({ type: "mock1", regex: /[^ ]/, wordBoundary: false });
     const mock2Def = definition({ type: "mock2", regex: /[^ ]ock/ });
     const tokenize = lexer([mock1Def, mock2Def]);
-    expect(tokenize("mock")[0]).toEqual({ type: "mock1", value: "m", data: {} });
+    expect(tokenize("mock")[0]).toEqual({ type: "mock1", value: "m" });
   });
 
   it.concurrent('definitions with "skip" property must be skipped', async ({ expect }) => {
@@ -359,8 +359,8 @@ describe("Tokenizer", () => {
     const spaceDef = definition({ type: "space", regex: /[ ]+/, skip: true, wordBoundary: false });
     const tokenize = lexer([wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
-      { type: "word", value: "hello", data: {} },
-      { type: "word", value: "world", data: {} },
+      { type: "word", value: "hello" },
+      { type: "word", value: "world" },
     ]);
   });
 
@@ -370,11 +370,11 @@ describe("Tokenizer", () => {
     const tokenize = lexer([groupDef, wordDef, spaceDef]);
     expect(tokenize("the quick fox jumps over the lazy dog")).toEqual([
       { type: "group", value: "the quick fox", data: { adjective: "quick", animal: "fox" } },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "jumps", data: {} },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "over", data: {} },
-      { type: "space", value: " ", data: {} },
+      { type: "space", value: " " },
+      { type: "word", value: "jumps" },
+      { type: "space", value: " " },
+      { type: "word", value: "over" },
+      { type: "space", value: " " },
       { type: "group", value: "the lazy dog", data: { adjective: "lazy", animal: "dog" } },
     ]);
   });
@@ -388,11 +388,11 @@ describe("Tokenizer", () => {
     const tokenize = lexer([groupDef, wordDef, spaceDef]);
     expect(tokenize("the quick fox jumps over the lazy dog")).toEqual([
       { type: "group", value: "quick fox", data: { article: "the", adjective: "quick", animal: "fox" } },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "jumps", data: {} },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "over", data: {} },
-      { type: "space", value: " ", data: {} },
+      { type: "space", value: " " },
+      { type: "word", value: "jumps" },
+      { type: "space", value: " " },
+      { type: "word", value: "over" },
+      { type: "space", value: " " },
       { type: "group", value: "lazy dog", data: { article: "the", adjective: "lazy", animal: "dog" } },
     ]);
   });
@@ -406,15 +406,14 @@ describe("Tokenizer", () => {
       {
         type: "helloWorld",
         value: "hello world",
-        data: {},
         children: [
-          { type: "hello", value: "hello", data: {} },
-          { type: "space", value: " ", data: {} },
-          { type: "world", value: "world", data: {} },
+          { type: "hello", value: "hello" },
+          { type: "space", value: " " },
+          { type: "world", value: "world" },
         ],
       },
-      { type: "space", value: " ", data: {} },
-      { type: "hello", value: "hello", data: {} },
+      { type: "space", value: " " },
+      { type: "hello", value: "hello" },
     ]);
   });
 
@@ -435,16 +434,16 @@ describe("Tokenizer", () => {
           animal: "fox",
         },
         children: [
-          { type: "word", value: "quick", data: {} },
-          { type: "space", value: " ", data: {} },
-          { type: "word", value: "fox", data: {} },
+          { type: "word", value: "quick" },
+          { type: "space", value: " " },
+          { type: "word", value: "fox" },
         ],
       },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "jumps", data: {} },
-      { type: "space", value: " ", data: {} },
-      { type: "word", value: "over", data: {} },
-      { type: "space", value: " ", data: {} },
+      { type: "space", value: " " },
+      { type: "word", value: "jumps" },
+      { type: "space", value: " " },
+      { type: "word", value: "over" },
+      { type: "space", value: " " },
       {
         type: "group",
         value: "lazy dog",
@@ -453,9 +452,9 @@ describe("Tokenizer", () => {
           animal: "dog",
         },
         children: [
-          { type: "word", value: "lazy", data: {} },
-          { type: "space", value: " ", data: {} },
-          { type: "word", value: "dog", data: {} },
+          { type: "word", value: "lazy" },
+          { type: "space", value: " " },
+          { type: "word", value: "dog" },
         ],
       },
     ]);
@@ -469,12 +468,10 @@ describe("Tokenizer", () => {
       {
         type: "token1",
         value: "mock",
-        data: {},
         children: [
           {
             type: "token2",
             value: "mock",
-            data: {},
           },
         ],
       },
@@ -510,38 +507,32 @@ describe("Tokenizer", () => {
       {
         type: "sprep",
         value: "of A of B of C",
-        data: {},
         children: [
-          { type: "prep", value: "of", data: {} },
+          { type: "prep", value: "of" },
           {
             type: "sn",
             value: "A of B of C",
-            data: {},
             children: [
-              { type: "noun", value: "A", data: {} },
+              { type: "noun", value: "A" },
               {
                 type: "sprep",
                 value: "of B of C",
-                data: {},
                 children: [
-                  { type: "prep", value: "of", data: {} },
+                  { type: "prep", value: "of" },
                   {
                     type: "sn",
                     value: "B of C",
-                    data: {},
                     children: [
-                      { type: "noun", value: "B", data: {} },
+                      { type: "noun", value: "B" },
                       {
                         type: "sprep",
                         value: "of C",
-                        data: {},
                         children: [
-                          { type: "prep", value: "of", data: {} },
+                          { type: "prep", value: "of" },
                           {
                             type: "sn",
                             value: "C",
-                            data: {},
-                            children: [{ type: "noun", value: "C", data: {} }],
+                            children: [{ type: "noun", value: "C" }],
                           },
                         ],
                       },
@@ -569,9 +560,9 @@ describe("Process functions", () => {
       const tokenize = lexer([helloDef, worldDef, spaceDef]);
 
       expect(tokenize("hello world")).toEqual([
-        { type: "hello", value: "HELLO", data: {} },
-        { type: "space", value: " ", data: {} },
-        { type: "world", value: "world", data: {} },
+        { type: "hello", value: "HELLO" },
+        { type: "space", value: " " },
+        { type: "world", value: "world" },
       ]);
     },
   );
@@ -584,9 +575,9 @@ describe("Process functions", () => {
       const tokenize = lexer([helloDef, worldDef, spaceDef]);
 
       expect(tokenize("hello world", mockProcessFunction)).toEqual([
-        { type: "hello", value: "HELLO", data: {} },
-        { type: "space", value: " ", data: {} },
-        { type: "world", value: "WORLD", data: {} },
+        { type: "hello", value: "HELLO" },
+        { type: "space", value: " " },
+        { type: "world", value: "WORLD" },
       ]);
     },
   );
@@ -599,9 +590,9 @@ describe("Process functions", () => {
       const tokenize = lexer([helloDef, worldDef, spaceDef], mockProcessFunction);
 
       expect(tokenize("hello world")).toEqual([
-        { type: "hello", value: "HELLO", data: {} },
-        { type: "space", value: " ", data: {} },
-        { type: "world", value: "WORLD", data: {} },
+        { type: "hello", value: "HELLO" },
+        { type: "space", value: " " },
+        { type: "world", value: "WORLD" },
       ]);
     },
   );
@@ -643,9 +634,7 @@ describe("Process functions", () => {
     const hello = definition({ type: "hello", regex: /hello/, process: localProcessor });
     const tokenize = lexer([hello], lexerProcessor);
 
-    expect(tokenize("hello", tokenizerProcessor)).toEqual([
-      { type: "hello", value: "hello-local-tokenizer-lexer", data: {} },
-    ]);
+    expect(tokenize("hello", tokenizerProcessor)).toEqual([{ type: "hello", value: "hello-local-tokenizer-lexer" }]);
   });
 
   it.concurrent("can add extra data", async ({ expect }) => {
