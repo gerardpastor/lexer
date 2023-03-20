@@ -1,5 +1,13 @@
 # @gerardpastor/lexer
 
+## 0.2.2
+
+### Patch Changes
+
+- Fulfill token data ttribute only when data
+  Renamed type ProcessFn to TokenProcessor (and its related vars)
+  Generalized Token type to work better with processor functions
+
 ## 0.2.1
 
 ### Patch Changes
