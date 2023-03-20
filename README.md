@@ -13,7 +13,7 @@ A simple typescript lexer.
 ## Usage
 
 ```typescript
-import { lexer, definition } from "@gerardpastor/lexer";
+import { definition, lexer } from "../src/index";
 
 const definitions = [
   definition({
@@ -26,16 +26,19 @@ const definitions = [
   }),
   definition({
     type: "operator",
-    values: ["\\+", "-", "\\*", "\\/"],
+    literal: ["+", "-", "*", "/"],
+    wordBoundary: false,
   }),
   definition({
     type: "parenthesis",
-    values: ["(", ")"],
+    literal: ["(", ")"],
+    wordBoundary: false,
   }),
   definition({
     type: "whitespace",
     regex: /[ ]+/,
     skip: true,
+    wordBoundary: false,
   }),
 ];
 
@@ -43,7 +46,6 @@ const tokenizer = lexer(definitions);
 const tokens = tokenizer("1 + 2 * 3");
 
 console.log(tokens);
-
 // [
 //   { type: 'number', value: '1', data: {} },
 //   { type: 'operator', value: '+', data: {} },
