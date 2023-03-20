@@ -3,10 +3,11 @@ import { escapeLiteral, regexAsString, buildRegex, checkProp, asArray } from "./
 export interface Token {
   type: string;
   value: string;
-  data: {
+  data?: {
     [key: string]: string;
   };
   children?: Token[];
+  [key: string]: any;
 }
 
 export type ProcessFn = (token: Token) => Token;
@@ -156,8 +157,9 @@ export function lexer(definitions: Definition[], lexerProcess: ProcessFn = defau
       let token: Token = {
         type: definition.type,
         value: value,
-        data: groups,
       };
+
+      if (Object.keys(groups).length) token.data = groups;
 
       if (definition.deep) {
         usedDefinitions.set(definition, value);
