@@ -1,4 +1,4 @@
-import { escapeLiteral, regexAsString, buildRegex, checkProp, asArray } from "./util";
+import { escapeLiteral, regexAsString, buildRegex, checkProp, asArray, cleanRegexGroups } from "./util";
 
 export interface Token {
   type: string;
@@ -96,8 +96,8 @@ class Definition {
     this.execRegex = buildRegex(execStringRegex, regexFlags);
     this.testRegex = buildRegex(testStringRegex, validFlags ?? regexFlags);
 
-    this.stringRegex = execStringRegex;
-    this.stringValid = testStringRegex;
+    this.stringRegex = cleanRegexGroups(execStringRegex);
+    this.stringValid = cleanRegexGroups(testStringRegex);
   }
 
   exec(input: string) {

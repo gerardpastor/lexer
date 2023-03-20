@@ -1,6 +1,6 @@
 import { describe, it, vi } from "vitest";
 import { lexer, definition, Token } from "./index";
-import { escapeLiteral, regexAsString, buildRegex, checkProp, asArray } from "./util";
+import { escapeLiteral, regexAsString, buildRegex, checkProp, asArray, cleanRegexGroups } from "./util";
 
 describe("Utils", () => {
   it.concurrent("Should check props correctly", async ({ expect }) => {
@@ -53,6 +53,13 @@ describe("Utils", () => {
     expect(asArray(/regex/)).toStrictEqual([/regex/]);
     expect(asArray([/regex/])).toStrictEqual([/regex/]);
     expect(asArray([])).toStrictEqual([]);
+  });
+
+  it.concurrent("Should clean all groups in a regex", async ({ expect }) => {
+    expect(cleanRegexGroups("value")).toStrictEqual("value");
+    expect(cleanRegexGroups("(?<group>value)")).toStrictEqual("(value)");
+    expect(cleanRegexGroups("(?<group>value)(?<group>value)")).toStrictEqual("(value)(value)");
+    expect(cleanRegexGroups("(?<group>(?<group>value)(?<group>value))")).toStrictEqual("((value)(value))");
   });
 });
 
@@ -249,6 +256,22 @@ describe("Definitions", () => {
     expect(() => definition({ type: "mock", regex: [/.*/], literal: ["value"] } as any)).toThrow();
     expect(() => definition({ type: "mock", regex: /.*/, valid: /.*/, nextValid: /.*/ } as any)).toThrow();
   });
+
+  it.concurrent("definitions are parsed to string correctly", async ({ expect }) => {
+    expect(definition({ type: "mock", regex: ".?" }).toString()).toEqual("(\\b(.?)\\b)");
+    expect(definition({ type: "mock", regex: /.?/ }).toString()).toEqual("(\\b(.?)\\b)");
+    expect(definition({ type: "mock", regex: [".?"] }).toString()).toEqual("(\\b(.?)\\b)");
+    expect(definition({ type: "mock", regex: [/.?/] }).toString()).toEqual("(\\b(.?)\\b)");
+    expect(definition({ type: "mock", literal: ".?" }).toString()).toEqual("(\\b(\\.\\?)\\b)");
+    expect(definition({ type: "mock", literal: [".?"] }).toString()).toEqual("(\\b(\\.\\?)\\b)");
+  });
+  it.concurrent("groups should be removed on string parsing", async ({ expect }) => {
+    expect(definition({ type: "mock", regex: "(?<group>.?)" }).toString()).toEqual("(\\b((.?))\\b)");
+    expect(definition({ type: "mock", regex: /(?<group>.?)/ }).toString()).toEqual("(\\b((.?))\\b)");
+    expect(definition({ type: "mock", regex: ["(?<group>.?)"] }).toString()).toEqual("(\\b((.?))\\b)");
+    expect(definition({ type: "mock", regex: [/(?<group>.?)/] }).toString()).toEqual("(\\b((.?))\\b)");
+  });
+  
 });
 
 describe("Lexer", () => {
@@ -400,6 +423,26 @@ describe("Tokenizer", () => {
   it.concurrent("can tokenize a string with nested definitions", async ({ expect }) => {
     const helloDef = definition({ type: "hello", regex: /hello/ });
     const worldDef = definition({ type: "world", regex: /world/ });
+    const helloWorldDef = definition({ type: "helloWorld", regex: `${helloDef} ${worldDef}`, deep: true });
+    const tokenize = lexer([helloWorldDef, helloDef, worldDef, spaceDef]);
+    expect(tokenize("hello world hello")).toEqual([
+      {
+        type: "helloWorld",
+        value: "hello world",
+        children: [
+          { type: "hello", value: "hello" },
+          { type: "space", value: " " },
+          { type: "world", value: "world" },
+        ],
+      },
+      { type: "space", value: " " },
+      { type: "hello", value: "hello" },
+    ]);
+  });
+
+  it.concurrent("can tokenize a string with nested definitions that has groups", async ({ expect }) => {
+    const helloDef = definition({ type: "hello", regex: /(?<value>hello)/ });
+    const worldDef = definition({ type: "world", regex: /(?<value>world)/ });
     const helloWorldDef = definition({ type: "helloWorld", regex: `${helloDef} ${worldDef}`, deep: true });
     const tokenize = lexer([helloWorldDef, helloDef, worldDef, spaceDef]);
     expect(tokenize("hello world hello")).toEqual([

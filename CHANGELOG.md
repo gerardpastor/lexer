@@ -1,5 +1,11 @@
 # @gerardpastor/lexer
 
+## 0.2.3
+
+### Patch Changes
+
+- Remove groups in string version
+
 ## 0.2.2
 
 ### Patch Changes
