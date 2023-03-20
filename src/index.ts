@@ -10,8 +10,8 @@ export interface Token {
   [key: string]: any;
 }
 
-export type ProcessFn = (token: Token) => Token;
-const defaultProcess: ProcessFn = (token) => token;
+export type TokenProcessor = (token: Token) => Token;
+const defaultProcessor: TokenProcessor = (token) => token;
 
 export type DefinitionProps = {
   type: string;
@@ -22,7 +22,7 @@ export type DefinitionProps = {
   skip?: boolean;
   wordBoundary?: boolean;
 
-  process?: ProcessFn;
+  process?: TokenProcessor;
 } & (
   | {
       literal: string | string[];
@@ -62,7 +62,7 @@ class Definition {
 
   readonly wordBoundary: boolean;
 
-  readonly process: ProcessFn;
+  readonly process: TokenProcessor;
 
   constructor(definition: DefinitionProps) {
     let { regex, literal, valid, nextValid, regexFlags, validFlags } = definition;
@@ -80,7 +80,7 @@ class Definition {
     this.wordBoundary = definition.wordBoundary ?? true;
     this.deep = definition.deep ?? false;
     this.skip = definition.skip ?? false;
-    this.process = definition.process ?? defaultProcess;
+    this.process = definition.process ?? defaultProcessor;
 
     // regex ??= asArray(literal!).map(escapeLiteral);
     const execArray = regex ? asArray(regex).map(regexAsString) : asArray(literal!).map(escapeLiteral);
@@ -113,20 +113,20 @@ class Definition {
   }
 }
 
-export type Tokenizer = (input: string, process?: ProcessFn) => Token[];
+export type Tokenizer = (input: string, process?: TokenProcessor) => Token[];
 
 export function definition(definition: DefinitionProps | (() => DefinitionProps)): Definition {
   if (typeof definition === "function") definition = definition();
   return new Definition(definition);
 }
 
-export function lexer(definitions: Definition[], lexerProcess: ProcessFn = defaultProcess): Tokenizer {
+export function lexer(definitions: Definition[], lexerProcessor: TokenProcessor = defaultProcessor): Tokenizer {
   let parentDefinition: Definition | null = null;
   let usedDefinitions: Map<Definition, string> = new Map();
 
   if (!definitions.length) throw new Error("No definitions provided");
 
-  const tokenizer: Tokenizer = (input: string, tokenizerProcess: ProcessFn = defaultProcess) => {
+  const tokenizer: Tokenizer = (input: string, tokenizerProcessor: TokenProcessor = defaultProcessor) => {
     let rest = input;
     let tokens: any = [];
 
@@ -172,8 +172,8 @@ export function lexer(definitions: Definition[], lexerProcess: ProcessFn = defau
       }
 
       token = definition.process(token);
-      token = tokenizerProcess(token);
-      token = lexerProcess(token);
+      token = tokenizerProcessor(token);
+      token = lexerProcessor(token);
 
       tokens.push(token);
     } while (rest.length);
