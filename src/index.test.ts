@@ -1,150 +1,253 @@
 import { describe, it, vi } from "vitest";
 import { lexer, definition, Token } from "./index";
+import { escapeLiteral, regexAsString, buildRegex, checkProp, asArray } from "./util";
+
+describe("Utils", () => {
+  it.concurrent("Should check props correctly", async ({ expect }) => {
+    expect(checkProp(undefined)).toBe(true);
+
+    expect(checkProp("")).toBe(false);
+    expect(checkProp("string")).toBe(true);
+    expect(checkProp(new RegExp(""))).toBe(false);
+    expect(checkProp(/.*/)).toBe(true);
+
+    expect(checkProp([])).toBe(false);
+    expect(checkProp([""])).toBe(false);
+    expect(checkProp(["string"])).toBe(true);
+    expect(checkProp([new RegExp("")])).toBe(false);
+    expect(checkProp([/.*/])).toBe(true);
+  });
+
+  it.concurrent("Should parse regex as string correctly", async ({ expect }) => {
+    expect(regexAsString("string")).toStrictEqual("string");
+    expect(regexAsString(/.*/)).toStrictEqual(".*");
+    expect(regexAsString(/(?<value>.*)/)).toStrictEqual("(?<value>.*)");
+    expect(regexAsString(".*")).toStrictEqual(".*");
+    expect(regexAsString("(?<value>.*)")).toStrictEqual("(?<value>.*)");
+  });
+
+  it.concurrent("Should build regex correctly", async ({ expect }) => {
+    expect(buildRegex("string")).toStrictEqual(/^string/);
+    expect(buildRegex(".*")).toStrictEqual(/^.*/);
+    expect(buildRegex("(?<value>.*)")).toStrictEqual(/^(?<value>.*)/);
+
+    expect(buildRegex("string", "i")).toStrictEqual(/^string/i);
+    expect(buildRegex(".*", "i")).toStrictEqual(/^.*/i);
+    expect(buildRegex("(?<value>.*)", "i")).toStrictEqual(/^(?<value>.*)/i);
+
+    expect(buildRegex("string", "g")).toStrictEqual(/^string/);
+    expect(buildRegex(".*", "g")).toStrictEqual(/^.*/);
+    expect(buildRegex("(?<value>.*)", "g")).toStrictEqual(/^(?<value>.*)/);
+  });
+
+  it.concurrent("Should escape literal correctly", async ({ expect }) => {
+    expect(escapeLiteral("string")).toStrictEqual("string");
+    expect(escapeLiteral("-[]/{}()*+?.\\^$|")).toStrictEqual("\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\\\^\\$\\|");
+  });
+
+  it.concurrent("Should return value as array", async ({ expect }) => {
+    expect(asArray("value")).toStrictEqual(["value"]);
+    expect(asArray(["value"])).toStrictEqual(["value"]);
+    expect(asArray([])).toStrictEqual([]);
+
+    expect(asArray(/regex/)).toStrictEqual([/regex/]);
+    expect(asArray([/regex/])).toStrictEqual([/regex/]);
+    expect(asArray([])).toStrictEqual([]);
+  });
+});
 
 describe("Definitions", () => {
-  it.concurrent("can provide a single value", async ({ expect }) => {
-    expect(definition({ type: "mock", value: "value" }).toString()).toEqual("((value)\\b)");
-  });
-  it.concurrent("can provide an array of values", async ({ expect }) => {
-    expect(definition({ type: "mock", values: ["AA", "BB", "CC"] }).toString()).toEqual("((AA|BB|CC)\\b)");
+  it.concurrent("can provide object or funcion", async ({ expect }) => {
+    expect(definition({ type: "mock", regex: ".*" }).execRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition(() => ({ type: "mock", regex: /.*/ })).execRegex).toEqual(/^(\b(.*)\b)/);
   });
 
-  it.concurrent("value is escaped", async ({ expect }) => {
-    expect(definition({ type: "mock", value: "-[]/{}()*+?.\\^$|" }).toString()).toEqual(
-      "((\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\\\^\\$\\|)\\b)",
-    );
+  it.concurrent("regexes are encapsulated", async ({ expect }) => {
+    expect(definition({ type: "mock", regex: ".*" }).execRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: /.*/ }).execRegex).toEqual(/^(\b(.*)\b)/);
   });
 
-  it.concurrent("values are escaped", async ({ expect }) => {
-    expect(definition({ type: "mock", value: "-[]/{}()*+?.\\^$|" }).toString()).toEqual(
-      "((\\-\\[\\]\\/\\{\\}\\(\\)\\*\\+\\?\\.\\\\\\^\\$\\|)\\b)",
-    );
+  it.concurrent("can provide a single literal", async ({ expect }) => {
+    expect(definition({ type: "mock", literal: "value" }).execRegex).toEqual(/^(\b(value)\b)/);
+  });
+
+  it.concurrent("can provide an array of literals", async ({ expect }) => {
+    expect(definition({ type: "mock", literal: ["AA", "BB", "CC"] }).execRegex).toEqual(/^(\b(AA|BB|CC)\b)/);
   });
 
   it.concurrent("can provide a single regex", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*" }).toString()).toEqual("(.*\\b)");
-    expect(definition({ type: "mock", regex: /.*/ }).toString()).toEqual("(.*\\b)");
+    expect(definition({ type: "mock", regex: ".*" }).execRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: /.*/ }).execRegex).toEqual(/^(\b(.*)\b)/);
   });
 
   it.concurrent("can provide an array of regexes", async ({ expect }) => {
-    expect(definition({ type: "mock", regexes: [".*", /.*/] }).toString()).toEqual("((.*)|(.*))");
-  });
-
-  it.concurrent("can provide an array of values", async ({ expect }) => {
-    expect(definition({ type: "mock", values: ["AA", "BB", "CC"] }).toString()).toEqual("((AA|BB|CC)\\b)");
-  });
-
-  it.concurrent("can provide a word boundary value", async ({ expect }) => {
-    expect(definition({ type: "mock", value: "value", wordBoundary: true }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", value: "value", wordBoundary: false }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", values: ["value"], wordBoundary: true }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", values: ["value"], wordBoundary: false }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", regex: /(value)/, wordBoundary: true }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", regex: "(value)", wordBoundary: true }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", regex: /(value)/, wordBoundary: false }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", regex: "(value)", wordBoundary: false }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", regexes: [/value/], wordBoundary: true }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", regexes: ["value"], wordBoundary: true }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", regexes: [/value/], wordBoundary: false }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", regexes: ["value"], wordBoundary: false }).toString()).toEqual("((value))");
-  });
-
-  it.concurrent("must use word boundary only for values by default", async ({ expect }) => {
-    expect(definition({ type: "mock", value: "value" }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", values: ["value"] }).toString()).toEqual("((value)\\b)");
-    expect(definition({ type: "mock", regex: /(value)/ }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", regex: "(value)" }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", regexes: [/value/] }).toString()).toEqual("((value))");
-    expect(definition({ type: "mock", regexes: ["value"] }).toString()).toEqual("((value))");
-  });
-
-  it.concurrent("regexes are encapsulated", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*" }).toString()).toEqual("(.*)");
-    expect(definition({ type: "mock", regex: /.*/ }).toString()).toEqual("(.*)");
-  });
-
-  it.concurrent("regexes are encapsulated", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*" }).toString()).toEqual("(.*)");
-    expect(definition({ type: "mock", regex: /.*/ }).toString()).toEqual("(.*)");
+    expect(definition({ type: "mock", regex: ["A+", /B+/] }).execRegex).toEqual(/^(\b(A+|B+)\b)/);
   });
 
   it.concurrent("execution regexes are generated correctly", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*" }).execRegex).toEqual(/^(.*)/);
-    expect(definition({ type: "mock", regex: /.*/ }).execRegex).toEqual(/^(.*)/);
+    expect(definition({ type: "mock", regex: ".*" }).execRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: /.*/ }).execRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: [".*"] }).execRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: [/.*/] }).execRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", literal: "literal" }).execRegex).toEqual(/^(\b(literal)\b)/);
+    expect(definition({ type: "mock", literal: ["value1", "value2"] }).execRegex).toEqual(/^(\b(value1|value2)\b)/);
   });
 
   it.concurrent("must use regex as a validation function by default", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*" }).testRegex).toEqual(/^(.*)/);
-    expect(definition({ type: "mock", regex: /.*/ }).testRegex).toEqual(/^(.*)/);
+    expect(definition({ type: "mock", regex: ".*" }).testRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: /.*/ }).testRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: [".*"] }).testRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", regex: [/.*/] }).testRegex).toEqual(/^(\b(.*)\b)/);
+    expect(definition({ type: "mock", literal: "literal" }).testRegex).toEqual(/^(\b(literal)\b)/);
+    expect(definition({ type: "mock", literal: ["value1", "value2"] }).testRegex).toEqual(/^(\b(value1|value2)\b)/);
   });
 
   it.concurrent("can provide a validation regex", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*", valid: "[^ ]+" }).testRegex).toEqual(/^([^ ]+)/);
-    expect(definition({ type: "mock", regex: /.*/, valid: "[^ ]+" }).testRegex).toEqual(/^([^ ]+)/);
-    expect(definition({ type: "mock", regex: ".*", valid: /[^ ]+/ }).testRegex).toEqual(/^([^ ]+)/);
-    expect(definition({ type: "mock", regex: /.*/, valid: /[^ ]+/ }).testRegex).toEqual(/^([^ ]+)/);
+    const base = { type: "mock" };
+
+    expect(definition({ ...base, regex: ".*", valid: "[^ ]+" }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, regex: /.*/, valid: "[^ ]+" }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, regex: [".*"], valid: "[^ ]+" }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, regex: [/.*/], valid: "[^ ]+" }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, literal: ".*", valid: "[^ ]+" }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, literal: [".*"], valid: "[^ ]+" }).testRegex).toEqual(/^[^ ]+/);
+
+    expect(definition({ ...base, regex: ".*", valid: /[^ ]+/ }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, regex: /.*/, valid: /[^ ]+/ }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, regex: [".*"], valid: /[^ ]+/ }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, regex: [/.*/], valid: /[^ ]+/ }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, literal: ".*", valid: /[^ ]+/ }).testRegex).toEqual(/^[^ ]+/);
+    expect(definition({ ...base, literal: [".*"], valid: /[^ ]+/ }).testRegex).toEqual(/^[^ ]+/);
   });
 
   it.concurrent("can provide a next validation regex", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*", nextValid: " [^ ]+" }).testRegex).toEqual(/^((.*)( [^ ]+))/);
-    expect(definition({ type: "mock", regex: /.*/, nextValid: " [^ ]+" }).testRegex).toEqual(/^((.*)( [^ ]+))/);
-    expect(definition({ type: "mock", regex: ".*", nextValid: / [^ ]+/ }).testRegex).toEqual(/^((.*)( [^ ]+))/);
-    expect(definition({ type: "mock", regex: /.*/, nextValid: / [^ ]+/ }).testRegex).toEqual(/^((.*)( [^ ]+))/);
+    const base = { type: "mock" };
+
+    expect(definition({ ...base, regex: ".*", nextValid: "[^ ]+" }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, regex: /.*/, nextValid: "[^ ]+" }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, regex: [".*"], nextValid: "[^ ]+" }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, regex: [/.*/], nextValid: "[^ ]+" }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, literal: ".*", nextValid: "[^ ]+" }).testRegex).toEqual(/^(\b(\.\*)\b)[^ ]+/);
+    expect(definition({ ...base, literal: [".*"], nextValid: "[^ ]+" }).testRegex).toEqual(/^(\b(\.\*)\b)[^ ]+/);
+
+    expect(definition({ ...base, regex: ".*", nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, regex: /.*/, nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, regex: [".*"], nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, regex: [/.*/], nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\b(.*)\b)[^ ]+/);
+    expect(definition({ ...base, literal: ".*", nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\b(\.\*)\b)[^ ]+/);
+    expect(definition({ ...base, literal: [".*"], nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\b(\.\*)\b)[^ ]+/);
   });
 
-  it.concurrent("can provide custom regex flags", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*", regexFlags: "i" }).execRegex.flags).toEqual("i");
-    expect(definition({ type: "mock", regex: /.*/, regexFlags: "i" }).execRegex.flags).toEqual("i");
-    expect(definition({ type: "mock", regex: ".*", validFlags: "i" }).testRegex.flags).toEqual("i");
-    expect(definition({ type: "mock", regex: /.*/, validFlags: "i" }).testRegex.flags).toEqual("i");
+  it.concurrent("literals are escaped", async ({ expect }) => {
+    const raw = "-[]/{}()*+?.\\^$|";
+    const escaped = /^(\b(\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|)\b)/;
+
+    expect(definition({ type: "mock", literal: raw }).execRegex).toEqual(escaped);
+    expect(definition({ type: "mock", literal: [raw] }).execRegex).toEqual(escaped);
+
+    expect(definition({ type: "mock", regex: ".?" }).execRegex).toEqual(/^(\b(.?)\b)/);
+    expect(definition({ type: "mock", regex: /.?/ }).execRegex).toEqual(/^(\b(.?)\b)/);
+    expect(definition({ type: "mock", regex: [".?"] }).execRegex).toEqual(/^(\b(.?)\b)/);
+    expect(definition({ type: "mock", regex: [/.?/] }).execRegex).toEqual(/^(\b(.?)\b)/);
+    expect(definition({ type: "mock", literal: ".?" }).execRegex).toEqual(/^(\b(\.\?)\b)/);
+    expect(definition({ type: "mock", literal: [".?"] }).execRegex).toEqual(/^(\b(\.\?)\b)/);
+  });
+
+  it.concurrent("can disable word boundary", async ({ expect }) => {
+    const base = { type: "mock", wordBoundary: false };
+
+    expect(definition({ ...base, regex: ".*" }).execRegex).toEqual(/^(.*)/);
+    expect(definition({ ...base, regex: /.*/ }).execRegex).toEqual(/^(.*)/);
+    expect(definition({ ...base, regex: [".*"] }).execRegex).toEqual(/^(.*)/);
+    expect(definition({ ...base, regex: [/.*/] }).execRegex).toEqual(/^(.*)/);
+    expect(definition({ ...base, literal: ".*" }).execRegex).toEqual(/^(\.\*)/);
+    expect(definition({ ...base, literal: [".*"] }).execRegex).toEqual(/^(\.\*)/);
+
+    expect(definition({ ...base, regex: ".*", nextValid: /[^ ]+/ }).testRegex).toEqual(/^(.*)[^ ]+/);
+    expect(definition({ ...base, regex: /.*/, nextValid: /[^ ]+/ }).testRegex).toEqual(/^(.*)[^ ]+/);
+    expect(definition({ ...base, regex: [".*"], nextValid: /[^ ]+/ }).testRegex).toEqual(/^(.*)[^ ]+/);
+    expect(definition({ ...base, regex: [/.*/], nextValid: /[^ ]+/ }).testRegex).toEqual(/^(.*)[^ ]+/);
+    expect(definition({ ...base, literal: ".*", nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\.\*)[^ ]+/);
+    expect(definition({ ...base, literal: [".*"], nextValid: /[^ ]+/ }).testRegex).toEqual(/^(\.\*)[^ ]+/);
+  });
+
+  it.concurrent("can provide custom exec regex flags", async ({ expect }) => {
+    const base = { type: "mock" };
+
+    expect(definition({ ...base, regex: ".*", regexFlags: "i" }).execRegex.flags).toEqual("i");
+    expect(definition({ ...base, regex: /.*/, regexFlags: "i" }).execRegex.flags).toEqual("i");
+    expect(definition({ ...base, regex: /.*/i }).execRegex.flags).toEqual("");
+    expect(definition({ ...base, regex: /.*/m, regexFlags: "i" }).execRegex.flags).toEqual("i");
+
+    expect(definition({ ...base, regex: ".*", regexFlags: "i" }).testRegex.flags).toEqual("i");
+    expect(definition({ ...base, regex: /.*/, regexFlags: "i" }).testRegex.flags).toEqual("i");
+    expect(definition({ ...base, regex: /.*/i }).testRegex.flags).toEqual("");
+    expect(definition({ ...base, regex: /.*/m, regexFlags: "i" }).testRegex.flags).toEqual("i");
+  });
+
+  it.concurrent("can provide custom test regex flags", async ({ expect }) => {
+    const base = { type: "mock", regex: /.*/ };
+
+    expect(definition({ ...base, valid: ".*", validFlags: "u" }).testRegex.flags).toEqual("u");
+    expect(definition({ ...base, valid: /.*/, validFlags: "u" }).testRegex.flags).toEqual("u");
+    expect(definition({ ...base, valid: /.*/m, validFlags: "u" }).testRegex.flags).toEqual("u");
+    expect(definition({ ...base, valid: /.*/u }).testRegex.flags).toEqual("");
+
+    expect(definition({ ...base, regexFlags: "i", valid: ".*", validFlags: "u" }).testRegex.flags).toEqual("u");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/, validFlags: "u" }).testRegex.flags).toEqual("u");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/m, validFlags: "u" }).testRegex.flags).toEqual("u");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/u }).testRegex.flags).toEqual("i");
   });
 
   it.concurrent('cannot provide "g" regex flag', async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*", regexFlags: "g" }).execRegex.flags).toEqual("");
-    expect(definition({ type: "mock", regex: ".*", regexFlags: "gi" }).execRegex.flags).toEqual("i");
-    expect(definition({ type: "mock", regex: /.*/, regexFlags: "g" }).execRegex.flags).toEqual("");
-    expect(definition({ type: "mock", regex: /.*/, regexFlags: "gi" }).execRegex.flags).toEqual("i");
-    expect(definition({ type: "mock", regex: ".*", validFlags: "g" }).testRegex.flags).toEqual("");
-    expect(definition({ type: "mock", regex: ".*", validFlags: "gi" }).testRegex.flags).toEqual("i");
-    expect(definition({ type: "mock", regex: /.*/, validFlags: "g" }).testRegex.flags).toEqual("");
-    expect(definition({ type: "mock", regex: /.*/, validFlags: "gi" }).testRegex.flags).toEqual("i");
-  });
+    const base = { type: "mock", regex: /.*/ };
 
-  it.concurrent("can access original regex and validation as string", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: ".*" }).stringRegex).toEqual("(.*)");
-    expect(definition({ type: "mock", regex: /.*/ }).stringRegex).toEqual("(.*)");
-    expect(definition({ type: "mock", regex: ".*", valid: ".*" }).stringValid).toEqual("(.*)");
-    expect(definition({ type: "mock", regex: /.*/, valid: /.*/ }).stringValid).toEqual("(.*)");
-  });
+    expect(definition({ ...base, regex: ".*", regexFlags: "g" }).execRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/, regexFlags: "g" }).execRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/g }).execRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/gi }).execRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/m, regexFlags: "g" }).execRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/m, regexFlags: "gi" }).execRegex.flags).not.contains("g");
 
-  it.concurrent("can convert to string", async ({ expect }) => {
-    expect(definition({ type: "mock", regex: /.*/ }).toString()).toEqual("(.*)");
-  });
+    expect(definition({ ...base, regex: ".*", regexFlags: "g" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/, regexFlags: "g" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/g }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/gi }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/m, regexFlags: "g" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regex: /.*/m, regexFlags: "gi" }).testRegex.flags).not.contains("g");
 
-  it.concurrent("can nest definitions", async ({ expect }) => {
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: / +/ });
+    expect(definition({ ...base, valid: ".*", validFlags: "g" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, valid: /.*/, validFlags: "g" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, valid: /.*/g }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, valid: /.*/gu }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, valid: /.*/m, validFlags: "g" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, valid: /.*/m, validFlags: "gu" }).testRegex.flags).not.contains("g");
 
-    const def = definition({ type: "mock", regex: `${word}(${space}${word})?${space}${word}` });
-
-    expect(def.execRegex).toEqual(/^(([^ ]+)(( +)([^ ]+))?( +)([^ ]+))/);
-    expect(def.stringRegex).toEqual("(([^ ]+)(( +)([^ ]+))?( +)([^ ]+))");
+    expect(definition({ ...base, regexFlags: "i", valid: ".*", validFlags: "u" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/, validFlags: "u" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/g }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/gu }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/m, validFlags: "g" }).testRegex.flags).not.contains("g");
+    expect(definition({ ...base, regexFlags: "i", valid: /.*/m, validFlags: "gu" }).testRegex.flags).not.contains("g");
   });
 
   it.concurrent("must throw an error if no valid props are provided", async ({ expect }) => {
-    expect(() => definition({ type: "mock", value: "" })).toThrow();
-    expect(() => definition({ type: "mock", values: [] })).toThrow();
-    expect(() => definition({ type: "mock", values: ["", ""] })).toThrow();
+    expect(() => definition({ type: "mock", literal: "" })).toThrow();
+    expect(() => definition({ type: "mock", literal: [] })).toThrow();
+    expect(() => definition({ type: "mock", literal: ["", ""] })).toThrow();
     expect(() => definition({ type: "mock", regex: "" })).toThrow();
+    expect(() => definition({ type: "mock", regex: new RegExp("") })).toThrow();
+    expect(() => definition({ type: "mock", regex: /.*/, valid: "" })).toThrow();
+    expect(() => definition({ type: "mock", regex: /.*/, valid: new RegExp("") })).toThrow();
+    expect(() => definition({ type: "mock", regex: /.*/, nextValid: "" })).toThrow();
+    expect(() => definition({ type: "mock", regex: /.*/, nextValid: new RegExp("") })).toThrow();
 
     expect(() => definition({ type: "mock" } as any)).toThrow();
-    expect(() => definition({ type: "mock", regex: /.*/, value: "value" } as any)).toThrow();
-    expect(() => definition({ type: "mock", regex: /.*/, values: ["value"] } as any)).toThrow();
-    expect(() => definition({ type: "mock", value: "value", values: ["value"] } as any)).toThrow();
-
-    expect(() => definition({ type: "mock", regex: /^.*/ })).toThrow();
-    expect(() => definition({ type: "mock", regex: /(^.*)/ })).toThrow();
-    expect(() => definition({ type: "mock", regex: /((^.*))/ })).toThrow();
+    expect(() => definition({ type: "mock", regex: /.*/, literal: "value" } as any)).toThrow();
+    expect(() => definition({ type: "mock", regex: /.*/, literal: ["value"] } as any)).toThrow();
+    expect(() => definition({ type: "mock", regex: [/.*/], literal: "value" } as any)).toThrow();
+    expect(() => definition({ type: "mock", regex: [/.*/], literal: ["value"] } as any)).toThrow();
+    expect(() => definition({ type: "mock", regex: /.*/, valid: /.*/, nextValid: /.*/ } as any)).toThrow();
   });
 });
 
@@ -162,26 +265,23 @@ describe("Lexer", () => {
 });
 
 describe("Tokenizer", () => {
+  const spaceDef = definition({ type: "space", regex: /[ ]+/, wordBoundary: false });
+
   it.concurrent("can tokenize a string", async ({ expect }) => {
     const def = definition({ type: "mock", regex: ".*" });
     const tokenize = lexer([def]);
-
     expect(tokenize("hello")).toEqual([{ type: "mock", value: "hello", data: {} }]);
   });
 
   it.concurrent("can tokenize a string with multiple definitions", async ({ expect }) => {
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: /[ ]+/ });
-    const tokenize = lexer([word, space]);
-
+    const wordDef = definition({ type: "word", regex: /[^ ]+/ });
+    const tokenize = lexer([wordDef, spaceDef]);
     expect(tokenize("hello")).toEqual([{ type: "word", value: "hello", data: {} }]);
   });
 
   it.concurrent("can tokenize a string with multiple definitions and multiple matches", async ({ expect }) => {
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: /[ ]+/ });
-    const tokenize = lexer([word, space]);
-
+    const wordDef = definition({ type: "word", regex: /[^ ]+/ });
+    const tokenize = lexer([wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
       { type: "word", value: "hello", data: {} },
       { type: "space", value: " ", data: {} },
@@ -189,12 +289,10 @@ describe("Tokenizer", () => {
     ]);
   });
 
-  it.concurrent('can tokenize a string using "value" prop', async ({ expect }) => {
-    const hello = definition({ type: "mock", value: "hello" });
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: /[ ]+/ });
-    const tokenize = lexer([hello, word, space]);
-
+  it.concurrent('can tokenize a string using "literal" prop', async ({ expect }) => {
+    const helloDef = definition({ type: "mock", literal: "hello" });
+    const wordDef = definition({ type: "word", regex: /[^ ]+/ });
+    const tokenize = lexer([helloDef, wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
       { type: "mock", value: "hello", data: {} },
       { type: "space", value: " ", data: {} },
@@ -202,11 +300,9 @@ describe("Tokenizer", () => {
     ]);
   });
 
-  it.concurrent('can tokenize a string using "values" prop', async ({ expect }) => {
-    const mock = definition({ type: "mock", values: ["hello", "world"] });
-    const space = definition({ type: "space", regex: /[ ]+/ });
-    const tokenize = lexer([mock, space]);
-
+  it.concurrent("can tokenize a string using literal array prop", async ({ expect }) => {
+    const mockDef = definition({ type: "mock", literal: ["hello", "world"] });
+    const tokenize = lexer([mockDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
       { type: "mock", value: "hello", data: {} },
       { type: "space", value: " ", data: {} },
@@ -214,11 +310,22 @@ describe("Tokenizer", () => {
     ]);
   });
 
-  it.concurrent("con tokenize definitions with same type but different regex", async ({ expect }) => {
-    const word = definition({ type: "token", regex: /[^ ]+/ });
-    const space = definition({ type: "token", regex: /[ ]+/ });
-    const tokenize = lexer([word, space]);
+  it.concurrent("must throw an error if no definition matches", async ({ expect }) => {
+    const mockDef = definition({ type: "mock", regex: /[ ]+/ });
+    const tokenize = lexer([mockDef]);
+    expect(() => tokenize("mock")).toThrow('No definition matched for "mock"');
+  });
 
+  it.concurrent("must throw an error if regex not matches with a passed test", async ({ expect }) => {
+    const mockDef = definition({ type: "mock", regex: /[ ]+/, valid: /[^ ]+/ });
+    const tokenize = lexer([mockDef]);
+    expect(() => tokenize("mock")).toThrow('No value matched for "mock"');
+  });
+
+  it.concurrent("con tokenize definitions with same type but different regex", async ({ expect }) => {
+    const wordDef = definition({ type: "token", regex: /[^ ]+/ });
+    const spaceDef = definition({ type: "token", regex: /[ ]+/, wordBoundary: false });
+    const tokenize = lexer([wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
       { type: "token", value: "hello", data: {} },
       { type: "token", value: " ", data: {} },
@@ -227,18 +334,30 @@ describe("Tokenizer", () => {
   });
 
   it.concurrent("definitions with equal regex must match the first one", async ({ expect }) => {
-    const mock1 = definition({ type: "mock1", regex: /[^ ]+/ });
-    const mock2 = definition({ type: "mock2", regex: /[^ ]+/ });
-    const tokenize = lexer([mock1, mock2]);
-
+    const mock1Def = definition({ type: "mock1", regex: /[^ ]+/ });
+    const mock2Def = definition({ type: "mock2", regex: /[^ ]+/ });
+    const tokenize = lexer([mock1Def, mock2Def]);
     expect(tokenize("mock")).toEqual([{ type: "mock1", value: "mock", data: {} }]);
   });
 
-  it.concurrent('can skip definitions with "skip" property', async ({ expect }) => {
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: /[ ]+/, skip: true });
-    const tokenize = lexer([word, space]);
+  it.concurrent("definitions with equal regex start must match the first one", async ({ expect }) => {
+    const mock1Def = definition({ type: "mock1", regex: /[^ ]+/ });
+    const mock2Def = definition({ type: "mock2", regex: /[^ ]ock/ });
+    const tokenize = lexer([mock1Def, mock2Def]);
+    expect(tokenize("mock")).toEqual([{ type: "mock1", value: "mock", data: {} }]);
+  });
 
+  it.concurrent("definitions with equal regex start must match the first one", async ({ expect }) => {
+    const mock1Def = definition({ type: "mock1", regex: /[^ ]/, wordBoundary: false });
+    const mock2Def = definition({ type: "mock2", regex: /[^ ]ock/ });
+    const tokenize = lexer([mock1Def, mock2Def]);
+    expect(tokenize("mock")[0]).toEqual({ type: "mock1", value: "m", data: {} });
+  });
+
+  it.concurrent('definitions with "skip" property must be skipped', async ({ expect }) => {
+    const wordDef = definition({ type: "word", regex: /[^ ]+/ });
+    const spaceDef = definition({ type: "space", regex: /[ ]+/, skip: true, wordBoundary: false });
+    const tokenize = lexer([wordDef, spaceDef]);
     expect(tokenize("hello world")).toEqual([
       { type: "word", value: "hello", data: {} },
       { type: "word", value: "world", data: {} },
@@ -246,11 +365,9 @@ describe("Tokenizer", () => {
   });
 
   it.concurrent("can tokenize a string with extra data", async ({ expect }) => {
-    const helloWorld = definition({ type: "group", regex: /the (?<adjective>[^ ]+) (?<animal>(fox|dog)+)/ });
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: /[ ]+/ });
-    const tokenize = lexer([helloWorld, word, space]);
-
+    const groupDef = definition({ type: "group", regex: /the (?<adjective>[^ ]+) (?<animal>(fox|dog)+)/ });
+    const wordDef = definition({ type: "word", regex: /[^ ]+/ });
+    const tokenize = lexer([groupDef, wordDef, spaceDef]);
     expect(tokenize("the quick fox jumps over the lazy dog")).toEqual([
       { type: "group", value: "the quick fox", data: { adjective: "quick", animal: "fox" } },
       { type: "space", value: " ", data: {} },
@@ -263,30 +380,28 @@ describe("Tokenizer", () => {
   });
 
   it.concurrent("can tokenize a string with custom value portion", async ({ expect }) => {
-    const helloWorld = definition({ type: "group", regex: /the (?<value>(?<adjective>[^ ]+) (?<animal>(fox|dog)+))/ });
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: /[ ]+/ });
-    const tokenize = lexer([helloWorld, word, space]);
-
+    const groupDef = definition({
+      type: "group",
+      regex: /(?<article>(the|a)) (?<value>(?<adjective>[^ ]+) (?<animal>(fox|dog)))/,
+    });
+    const wordDef = definition({ type: "word", regex: /[^ ]+/ });
+    const tokenize = lexer([groupDef, wordDef, spaceDef]);
     expect(tokenize("the quick fox jumps over the lazy dog")).toEqual([
-      { type: "group", value: "quick fox", data: { adjective: "quick", animal: "fox" } },
+      { type: "group", value: "quick fox", data: { article: "the", adjective: "quick", animal: "fox" } },
       { type: "space", value: " ", data: {} },
       { type: "word", value: "jumps", data: {} },
       { type: "space", value: " ", data: {} },
       { type: "word", value: "over", data: {} },
       { type: "space", value: " ", data: {} },
-      { type: "group", value: "lazy dog", data: { adjective: "lazy", animal: "dog" } },
+      { type: "group", value: "lazy dog", data: { article: "the", adjective: "lazy", animal: "dog" } },
     ]);
   });
 
   it.concurrent("can tokenize a string with nested definitions", async ({ expect }) => {
-    const space = definition({ type: "space", regex: /[ ]+/ });
-    const hello = definition({ type: "hello", regex: /hello/ });
-    const world = definition({ type: "world", regex: /world/ });
-    const helloWorld = definition({ type: "helloWorld", regex: `${hello} ${world}`, deep: true });
-
-    const tokenize = lexer([helloWorld, hello, world, space]);
-
+    const helloDef = definition({ type: "hello", regex: /hello/ });
+    const worldDef = definition({ type: "world", regex: /world/ });
+    const helloWorldDef = definition({ type: "helloWorld", regex: `${helloDef} ${worldDef}`, deep: true });
+    const tokenize = lexer([helloWorldDef, helloDef, worldDef, spaceDef]);
     expect(tokenize("hello world hello")).toEqual([
       {
         type: "helloWorld",
@@ -303,16 +418,14 @@ describe("Tokenizer", () => {
     ]);
   });
 
-  it.concurrent("can tokenize a string with  nested definitions and a custom value portion", async ({ expect }) => {
-    const helloWorld = definition({
+  it.concurrent("can tokenize a string with nested definitions and a custom value portion", async ({ expect }) => {
+    const groupDef = definition({
       type: "group",
       regex: /the (?<value>(?<adjective>[^ ]+) (?<animal>(fox|dog)+))/,
       deep: true,
     });
-    const word = definition({ type: "word", regex: /[^ ]+/ });
-    const space = definition({ type: "space", regex: /[ ]+/, skip: true });
-    const tokenize = lexer([helloWorld, word, space]);
-
+    const wordDef = definition({ type: "word", regex: /[^ ]+/ });
+    const tokenize = lexer([groupDef, wordDef, spaceDef]);
     expect(tokenize("the quick fox jumps over the lazy dog")).toEqual([
       {
         type: "group",
@@ -323,11 +436,15 @@ describe("Tokenizer", () => {
         },
         children: [
           { type: "word", value: "quick", data: {} },
+          { type: "space", value: " ", data: {} },
           { type: "word", value: "fox", data: {} },
         ],
       },
+      { type: "space", value: " ", data: {} },
       { type: "word", value: "jumps", data: {} },
+      { type: "space", value: " ", data: {} },
       { type: "word", value: "over", data: {} },
+      { type: "space", value: " ", data: {} },
       {
         type: "group",
         value: "lazy dog",
@@ -337,6 +454,7 @@ describe("Tokenizer", () => {
         },
         children: [
           { type: "word", value: "lazy", data: {} },
+          { type: "space", value: " ", data: {} },
           { type: "word", value: "dog", data: {} },
         ],
       },
@@ -344,29 +462,19 @@ describe("Tokenizer", () => {
   });
 
   it.concurrent("can tokenize a string with deep nested definitions", async ({ expect }) => {
-    const mock1 = definition({ type: "mock1", regex: /mock/, deep: true });
-    const mock2 = definition({ type: "mock2", regex: /mock/, deep: true });
-    const mock3 = definition({ type: "mock3", regex: /mock/ });
-
-    const tokenize = lexer([mock1, mock2, mock3]);
-
+    const def1 = definition({ type: "token1", regex: /mock/, deep: true });
+    const def2 = definition({ type: "token2", regex: /mock/ });
+    const tokenize = lexer([def1, def2]);
     expect(tokenize("mock")).toEqual([
       {
-        type: "mock1",
+        type: "token1",
         value: "mock",
         data: {},
         children: [
           {
-            type: "mock2",
+            type: "token2",
             value: "mock",
             data: {},
-            children: [
-              {
-                type: "mock3",
-                value: "mock",
-                data: {},
-              },
-            ],
           },
         ],
       },
@@ -374,73 +482,91 @@ describe("Tokenizer", () => {
   });
 
   it.concurrent("can handle nested definitions without infinite loop", async ({ expect }) => {
-    const mock1 = definition({ type: "mock1", regex: /mock/, deep: true });
-    const mock2 = definition({ type: "mock2", regex: /mock/, deep: true });
-    const mock3 = definition({ type: "mock3", regex: /mock/ });
-
-    const tokenize1 = lexer([mock1, mock2, mock3]);
-    const tokenize2 = lexer([mock1, mock2]);
-
-    expect(() => tokenize1("mock")).not.toThrow();
-    expect(() => tokenize2("mock")).toThrow();
+    const def1 = definition({ type: "token1", regex: /mock/, deep: true });
+    const def2 = definition({ type: "token2", regex: /mock/, deep: true });
+    const def3 = definition({ type: "token3", regex: /mock/ });
+    const tokenize1 = lexer([def1, def2, def3]);
+    const tokenize2 = lexer([def1, def2]);
+    const tokenize3 = lexer([def1, def3]);
+    expect(() => tokenize1("mock")).toThrow('Infinite loop detected for "mock": token1 -> token2');
+    expect(() => tokenize2("mock")).toThrow('Infinite loop detected for "mock": token1 -> token2');
+    expect(() => tokenize3("mock")).not.toThrow('Infinite loop detected for "mock": token1 -> token2');
   });
 
-  it.concurrent("definitions are tested in order", async ({ expect }) => {
-    const space = definition({ type: "space", regex: /[ ]+/ }) as any;
-    const hello = definition({ type: "hello", regex: /hello/ }) as any;
-    const world = definition({ type: "world", regex: /[^ ]+/ }) as any;
+  it.concurrent("can handle nested recursive definitions without infinite loop", async ({ expect }) => {
+    const sprepDef = definition({ type: "sprep", regex: /of (A|B|C)( of (A|B|C))*/, deep: true });
+    const snDef = definition({ type: "sn", regex: /(A|B|C)( of (A|B|C))*/, deep: true });
+    const prepDef = definition({ type: "prep", regex: /of/ });
+    const nounDef = definition({ type: "noun", regex: /(A|B|C)/ });
+    const nounDeepDef = definition({ type: "noun", regex: /(A|B|C)/, deep: true });
+    const spaceDef = definition({ type: "space", regex: /[ ]+/, wordBoundary: false, skip: true });
 
-    const calls: string[] = [];
+    const tokenize1 = lexer([sprepDef, snDef, prepDef, nounDeepDef, spaceDef]);
+    const tokenize2 = lexer([sprepDef, snDef, prepDef, nounDef, spaceDef]);
 
-    const spaceTest = space.test.bind(space);
-    space.test = (str: any) => {
-      calls.push("space");
-      return spaceTest(str);
-    };
+    expect(() => tokenize1("of A of B of C")).toThrow('Infinite loop detected for "A": sprep -> sn -> noun');
 
-    const helloTest = hello.test.bind(hello);
-    hello.test = (str: any) => {
-      calls.push("hello");
-      return helloTest(str);
-    };
-
-    const worldTest = world.test.bind(world);
-    world.test = (str: any) => {
-      calls.push("world");
-      return worldTest(str);
-    };
-
-    const tokenize = lexer([space, hello, world]);
-    tokenize("hello world");
-
-    expect(calls).toEqual(["space", "hello", "space", "space", "hello", "world"]);
-  });
-
-  it.concurrent("must throw an error if no definition matches", async ({ expect }) => {
-    const mock = definition({ type: "mock", regex: /[ ]+/ });
-    const tokenize = lexer([mock]);
-
-    expect(() => tokenize("mock")).toThrow('No definition matched for "mock"');
-  });
-
-  it.concurrent("must throw an error if regex not matches with a passed test", async ({ expect }) => {
-    const mock = definition({ type: "mock", regex: /[ ]+/, valid: /[^ ]+/ });
-    const tokenize = lexer([mock]);
-
-    expect(() => tokenize("mock")).toThrow('No value matched for "mock"');
+    expect(tokenize2("of A of B of C")).toEqual([
+      {
+        type: "sprep",
+        value: "of A of B of C",
+        data: {},
+        children: [
+          { type: "prep", value: "of", data: {} },
+          {
+            type: "sn",
+            value: "A of B of C",
+            data: {},
+            children: [
+              { type: "noun", value: "A", data: {} },
+              {
+                type: "sprep",
+                value: "of B of C",
+                data: {},
+                children: [
+                  { type: "prep", value: "of", data: {} },
+                  {
+                    type: "sn",
+                    value: "B of C",
+                    data: {},
+                    children: [
+                      { type: "noun", value: "B", data: {} },
+                      {
+                        type: "sprep",
+                        value: "of C",
+                        data: {},
+                        children: [
+                          { type: "prep", value: "of", data: {} },
+                          {
+                            type: "sn",
+                            value: "C",
+                            data: {},
+                            children: [{ type: "noun", value: "C", data: {} }],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
   });
 });
 
 describe("Process functions", () => {
+  const spaceDef = definition({ type: "space", regex: /[ ]+/, wordBoundary: false });
   const mockProcessFunction = (token: Token) => ({ ...token, value: token.value.toUpperCase() });
 
   it.concurrent(
     "can tokenize a string with multiple definitions and multiple matches with a local processor",
     async ({ expect }) => {
-      const hello = definition({ type: "hello", regex: /hello/, process: mockProcessFunction });
-      const world = definition({ type: "world", regex: /world/ });
-      const space = definition({ type: "space", regex: /[ ]+/ });
-      const tokenize = lexer([hello, world, space]);
+      const helloDef = definition({ type: "hello", regex: /hello/, process: mockProcessFunction });
+      const worldDef = definition({ type: "world", regex: /world/ });
+      const tokenize = lexer([helloDef, worldDef, spaceDef]);
 
       expect(tokenize("hello world")).toEqual([
         { type: "hello", value: "HELLO", data: {} },
@@ -453,10 +579,9 @@ describe("Process functions", () => {
   it.concurrent(
     "can tokenize a string with multiple definitions and multiple matches with a tokenizer processor",
     async ({ expect }) => {
-      const hello = definition({ type: "hello", regex: /hello/ });
-      const world = definition({ type: "world", regex: /world/ });
-      const space = definition({ type: "space", regex: /[ ]+/ });
-      const tokenize = lexer([hello, world, space]);
+      const helloDef = definition({ type: "hello", regex: /hello/ });
+      const worldDef = definition({ type: "world", regex: /world/ });
+      const tokenize = lexer([helloDef, worldDef, spaceDef]);
 
       expect(tokenize("hello world", mockProcessFunction)).toEqual([
         { type: "hello", value: "HELLO", data: {} },
@@ -469,10 +594,9 @@ describe("Process functions", () => {
   it.concurrent(
     "can tokenize a string with multiple definitions and multiple matches with a lexer processor",
     async ({ expect }) => {
-      const hello = definition({ type: "hello", regex: /hello/ });
-      const world = definition({ type: "world", regex: /world/ });
-      const space = definition({ type: "space", regex: /[ ]+/ });
-      const tokenize = lexer([hello, world, space], mockProcessFunction);
+      const helloDef = definition({ type: "hello", regex: /hello/ });
+      const worldDef = definition({ type: "world", regex: /world/ });
+      const tokenize = lexer([helloDef, worldDef, spaceDef], mockProcessFunction);
 
       expect(tokenize("hello world")).toEqual([
         { type: "hello", value: "HELLO", data: {} },
@@ -492,9 +616,9 @@ describe("Process functions", () => {
     const local22Processor = vi.fn((arg) => arg);
 
     const def11 = definition({ type: "mock", regex: /[^ ]+/, process: local11Processor });
-    const def12 = definition({ type: "mock", regex: /[ ]+/, process: local12Processor });
+    const def12 = definition({ type: "mock", regex: /[ ]+/, process: local12Processor, wordBoundary: false });
     const def21 = definition({ type: "mock", regex: /[^ ]+/, process: local21Processor });
-    const def22 = definition({ type: "mock", regex: /[ ]+/, process: local22Processor });
+    const def22 = definition({ type: "mock", regex: /[ ]+/, process: local22Processor, wordBoundary: false });
 
     const tokenize1 = lexer([def11, def12], lexerProcessor);
     tokenize1("hello world", tokenizer1Processor);
